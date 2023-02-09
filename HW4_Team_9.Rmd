@@ -1,0 +1,277 @@
+---
+title: "HW4"
+author: "Team_9"
+date: "2023-02-08"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Homework 4
+
+## Team 9:
+
+-   Charlie Madison
+-   Hrishi Mysore Harishkumar
+-   Michelle Li
+-   Qizhuang Huang
+-   Shaun Pfister
+-   Rodolfo Lerma
+
+## Description
+
+The data in diabetes.csv - also hosted at https://www.kaggle.com/datasets/uciml/pima-indians-diabetes-database - contains information about female patients of Pima Indian heritage who are at least 21 years old. The data contains the following variables:
+
+-   **Pregnancies:** number of pregnancies experienced by the patient.
+-   **Glucose:** the plasma glucose concentration measured from an oral glucose tolerance test (in mg=dL).
+-   **BloodPressure:** the patient's diastolic blood pressure (in mmHg).
+-   **SkinThickness:** the skin fold thickness of the patient's triceps (in mm).
+-   **Insulin:** the patient's serum insulin level (in mU=ml).
+-   **BMI:** the patient's Body Mass Index (in kg/m2).
+-   **DiabetesPedigreeFunction:** a measure of the likelihood that the patient will develop diabetes based on family history.
+-   **Age:** the patient's age (in completed years).
+-   **Outcome:** whether or not the patient was diagnosed with diabetes (1:diagnosed with diabetes, 0: not diagnosed with diabetes).
+
+## Question 1:
+**Load the data contained in the diabetes.csv file in R.**
+
+```{r, message = FALSE}
+library(MASS)
+library(caret)
+library(class)
+library(dplyr)
+library(e1071)
+library(ggplot2)
+library(pROC)
+```
+
+```{r}
+df <- read.csv("diabetes.csv")
+head(df)
+```
+
+## Question 2:
+**Replicate the logic used in the class8.r file to divide the data in a `train`, `validation` and `test` set. Use a 40% - 30% - 30% split.**
+
+```{r}
+# Data splitting
+set.seed(0)
+
+# 40% of the data will go in "train".
+is_train <- as.logical(rbinom(dim(df)[1], 1, 0.4))
+df_train <- df[is_train, ]
+
+# 50% of the remaining 60% will go in "validation",
+is_validation <- as.logical(rbinom(dim(df)[1], 1, 0.5) * !is_train)
+df_validation <- df[is_validation, ]
+
+# The remaining 50% of the 60% will go in "test".
+df_test <- df[!(is_train | is_validation), ]
+```
+
+## Question 3:
+**Using all available predictors, fit to the training set:**
+- a classifer based on logistic regression
+- an LDA classifer
+- a QDA classifer
+- a Naive Bayes classifer.
+
+```{r}
+#Logistc Regression
+logistic_outcome  <- glm(Outcome ~ ., family = "binomial", data = df_train)
+
+#LDA
+lda_outcome <- lda(Outcome ~ ., data = df_train)
+
+#QDA
+qda_outcome <- qda(Outcome ~ ., data = df_train)
+
+#(Gaussian) Naive Bayes
+nb_outcome <- naiveBayes(Outcome ~ ., data = df_train)
+```
+
+## Question 4:
+**A group of physician asks you to produce a classifer that achieves 85% Sensitivity when used to test new Pima Indian female patients for diabetes. Using the validation set:
+- plot the ROC curves for the models you built
+- use the roc function of the pROC library to find - for each of the models you built - the largest threshold t that makes your model achieves at least 90% Sensitivity (just in case, we build some extra margin here to stay a little conservative and make it more likely that we can hit the target Sensitivity goal).
+- which model performs best (i.e., achieves the largest Specificity) under these conditions?
+
+For the second and third bullet point, you can use this kind of logic:
+
+```{r, message=FALSE}
+plot.roc(
+    df_train$Outcome,
+    predict(logistic_outcome),
+    col = "blue",
+    print.auc=TRUE
+)
+grid(nx = NULL, ny = NULL,
+     lty = 2, col = "gray", lwd = 1)
+
+title(main = "ROC Logistic Regression")
+```
+
+```{r, message=FALSE}
+plot.roc(
+    df_train$Outcome,
+    predict(lda_outcome)$posterior[, 2],
+    col = "blue",
+    print.auc=TRUE
+)
+grid(nx = NULL, ny = NULL,
+     lty = 2, col = "gray", lwd = 1)
+
+title(main = "ROC LDA")
+```
+
+```{r, message=FALSE}
+plot.roc(
+    df_train$Outcome,
+    predict(qda_outcome)$posterior[, 2],
+    col = "blue",
+    print.auc=TRUE
+)
+grid(nx = NULL, ny = NULL,
+     lty = 2, col = "gray", lwd = 1)
+
+title(main = "ROC QDA")
+```
+
+```{r, message=FALSE}
+plot.roc(
+    df_train$Outcome,
+    predict(nb_outcome, df_train, type='raw')[,2],
+    col = "blue",
+    print.auc=TRUE
+)
+
+grid(nx = NULL, ny = NULL,
+     lty = 2, col = "gray", lwd = 1)
+
+title(main = "ROC Naive Bayes")
+```
+
+```{r}
+# set target sensitivity
+target_sensitivity <- 0.90
+
+# calculate the ROC curve
+logistic_diabetes_roc <- roc(
+  df_validation$Outcome,
+  predict(logistic_outcome, 
+          df_validation, 
+          type = "response")
+)
+
+lda_diabetes_roc <- roc(
+  df_validation$Outcome,
+  predict(lda_outcome, 
+          df_validation, 
+          type = "response")$posterior[, 2]
+)
+
+qda_diabetes_roc <- roc(
+  df_validation$Outcome,
+  predict(qda_outcome, 
+          df_validation, 
+          type = "response")$posterior[, 2]
+)
+
+nb_diabetes_roc <- roc(
+  df_validation$Outcome,
+  predict(nb_outcome, 
+          df_validation, 
+          type = "raw")[,2]
+)
+
+# find the largest threshold t that achieves the target sensitivity
+logistic_diabetes_roc_index <- ( which.max(logistic_diabetes_roc$sensitivities < target_sensitivity) - 1)
+lda_diabetes_roc_index <- ( which.max(lda_diabetes_roc$sensitivities < target_sensitivity) - 1)
+qda_diabetes_roc_index <- ( which.max(qda_diabetes_roc$sensitivities < target_sensitivity) - 1)
+nb_diabetes_roc_index <- ( which.max(nb_diabetes_roc$sensitivities < target_sensitivity) - 1)
+
+logistic_diabetes_t <- logistic_diabetes_roc$threshold[
+logistic_diabetes_roc_index]
+
+lda_diabetes_t <- lda_diabetes_roc$threshold[
+lda_diabetes_roc_index]
+
+qda_diabetes_t <- qda_diabetes_roc$threshold[
+qda_diabetes_roc_index]
+
+nb_diabetes_t <- nb_diabetes_roc$threshold[
+nb_diabetes_roc_index]
+
+# find the specificity of the model at this threshold
+logistic_diabetes_roc$specificities[logistic_diabetes_roc_index]
+lda_diabetes_roc$specificities[lda_diabetes_roc_index]
+qda_diabetes_roc$specificities[qda_diabetes_roc_index]
+nb_diabetes_roc$specificities[nb_diabetes_roc_index]
+```
+
+## Question 5:
+**How different are the ROC curves of the classifer obtained by means of logistic regression and of the LDA classifer? Are you surprised by this result? Explain.**
+
+Not too different, as we can see that the AUC for the Logistic Regression was 0.816 and the 0.817 for the LDA classifier and the desired Sensitivity is achived at a very similar Specificity (0.58 and 0.586 respectively)
+
+## Question 6:
+**Evaluate the winner model of Question 4 on the test set using the confusion Matrix function. You will need to use the threshold that you computed for this model in Question 4. Does this model seem to satisfy the Sensitivity requirement that the physicians shared with you?**
+
+The winner based on the highest Specificity under the desired Sensitivity of 90% is the LDA model with a Specificity value of 0.586 (very close to the Logistic Regression Model).
+
+```{r}
+# Confusion matrix.
+t <- 0.5
+confusionMatrix(
+    as.factor(
+        ifelse(
+            #predict(df_test, lda_outcome)$posterior[, 2] > t,
+            predict(lda_outcome, df_test)$posterior[, 2] > t,
+            '1',
+            '0'
+        )
+    ),
+    df_test$Outcome,
+    positive = '1',
+    mode = "everything"
+)
+```
+
+```{r}
+predictors_values <-predict(lda_outcome)
+real <- df_test$Outcome
+```
+
+
+```{r}
+conf_mat <- confusionMatrix(real, predictors_values, 0.5)
+```
+
+## Question 7:
+**What is your best estimate about the Specificity that your model will achieve on future patients?**
+The value would be either as good of what we see on the Test data (data that the model has not seen before) or slighly lower.
+
+
+## Question 8:
+**Fit a knn classifer to the training data and tune the parameter k of your knn classifer using the validation set in such a way that k maximizes the Sensitivity of the classifer on the validation set. You can look back at the class8.r file that we discussed in class and adapt the code from there.**
+
+```{r}
+standardize <- function(x, mean, sd) {
+    return((x - mean) / sd)
+}
+
+
+```
+
+
+## Question 9:
+**What is the best value of k on these data based on your tuning?**
+
+
+
+## Question 10:
+**Evaluate the knn model on the test set using the confusion Matrix function. Does this knn model perform better or worse than the winner model of Question 4? Which model will you share with the physician to help them diagnose diabetes on future female Pima Indian patients?**
+
+

@@ -265,20 +265,25 @@ standardize <- function(x, mean, sd) {
 ```
 
 ```{r}
-head(df)
-```
-```{r}
 quant_pred_names <- c("Pregnancies", "Glucose", "BloodPressure", "SkinThickness", "Insulin", "BMI", "DiabetesPedigreeFunction", "Age")
 
 mean_train <- sapply(df_train[quant_pred_names], mean)
 sd_train <- sapply(df_train[quant_pred_names], sd)
 
 df_train_std <- df_train
+df_validation_std <- df_validation
 df_test_std <- df_test
 
 df_train_std[quant_pred_names] <- mapply(
     standardize,
     df_train_std[quant_pred_names],
+    mean = mean_train,
+    sd = sd_train
+)
+
+df_validation_std[quant_pred_names] <- mapply(
+    standardize,
+    df_validation_std[quant_pred_names],
     mean = mean_train,
     sd = sd_train
 )
@@ -292,30 +297,72 @@ df_test_std[quant_pred_names] <- mapply(
 ```
 
 ```{r}
-# knn model with k=2
-knn_2 <- knn(
+# We will optimize our knn model with respect to the F1 score.
+k_candidates <- 2:75
+knn_models <- list()
+knn_models_performance <- list()
+performance_metric <- "Sensitivity"
+for (k in k_candidates) {
+    model <- knn(
+                df_train_std[quant_pred_names],
+                df_validation_std[quant_pred_names],
+                df_train_std$Outcome,
+                k = k
+            )
+    performance <- confusionMatrix(model,
+        as.factor(df_validation_std$Outcome),
+        mode = "everything"
+    )$byClass[performance_metric]
+    knn_models <- append(knn_models, model)
+    knn_models_performance <- append(knn_models_performance, performance)
+}
+```
+
+```{r}
+# Here is the plot showing the results and the best value of k.
+plot(k_candidates, knn_models_performance, type = "b", pch = 16)
+best_index <- which.max(knn_models_performance)
+best_k <- k_candidates[best_index]
+segments(
+    best_k,
+    0,
+    best_k,
+    knn_models_performance[[best_index]],
+    col = "blue"
+)
+
+grid(nx = NULL, ny = NULL,
+     lty = 2, col = "gray", lwd = 1)
+
+title(main = "KNN Optimal K value")
+```
+```{r}
+#Best K value
+best_k
+```
+```{r}
+# Let's fit our best model.
+knn_default_best <- knn(
     df_train_std[quant_pred_names],
     df_test_std[quant_pred_names],
     df_train_std$Outcome,
-    k = 2
+    k = best_k
 )
 
-# Evaluate it on the test data.
-# This is a fair evaluation.
+#Evaluation of model
 confusionMatrix(
-    knn_2,
+    knn_default_best,
     as.factor(df_test_std$Outcome),
     mode = "everything"
 )
-
-```    
+```
 
 ## Question 9:
 **What is the best value of k on these data based on your tuning?**
 
+The best value as seeing above is k = 59.
 
 
 ## Question 10:
 **Evaluate the knn model on the test set using the confusion Matrix function. Does this knn model perform better or worse than the winner model of Question 4? Which model will you share with the physician to help them diagnose diabetes on future female Pima Indian patients?**
-
 

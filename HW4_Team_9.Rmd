@@ -68,8 +68,13 @@ is_validation <- as.logical(rbinom(dim(df)[1], 1, 0.5) * !is_train)
 df_validation <- df[is_validation, ]
 
 # The remaining 50% of the 60% will go in "test".
-df_test <- df[!(is_train | is_validation), ]
+df_test <- df[!is_train | !is_validation, ]
 ```
+
+```{r}
+df_test
+```
+
 
 ## Question 3:
 **Using all available predictors, fit to the training set:**
@@ -222,36 +227,32 @@ Not too different, as we can see that the AUC for the Logistic Regression was 0.
 The winner based on the highest Specificity under the desired Sensitivity of 90% is the LDA model with a Specificity value of 0.586 (very close to the Logistic Regression Model).
 
 ```{r}
+test1 <- predict(lda_outcome, df_test)$posterior[, 2]
+tab1 <- table(test1 > 0.5, df_test$Outcome)
+tab1
+```
+
+
+```{r}
 # Confusion matrix.
 t <- 0.5
 confusionMatrix(
     as.factor(
         ifelse(
-            #predict(df_test, lda_outcome)$posterior[, 2] > t,
-            predict(lda_outcome, df_test)$posterior[, 2] > t,
-            '1',
-            '0'
+            test1 > t,
+            1,
+            0
         )
     ),
-    df_test$Outcome,
-    positive = '1',
+    as.factor(df_test$Outcome),
     mode = "everything"
 )
 ```
 
-```{r}
-predictors_values <-predict(lda_outcome)
-real <- df_test$Outcome
-```
-
-
-```{r}
-conf_mat <- confusionMatrix(real, predictors_values, 0.5)
-```
 
 ## Question 7:
 **What is your best estimate about the Specificity that your model will achieve on future patients?**
-The value would be either as good of what we see on the Test data (data that the model has not seen before) or slighly lower.
+The value would be either as good of what we see on the Test data (data that the model has not seen before) or slightly lower.
 
 
 ## Question 8:
@@ -261,10 +262,53 @@ The value would be either as good of what we see on the Test data (data that the
 standardize <- function(x, mean, sd) {
     return((x - mean) / sd)
 }
-
-
 ```
 
+```{r}
+head(df)
+```
+```{r}
+quant_pred_names <- c("Pregnancies", "Glucose", "BloodPressure", "SkinThickness", "Insulin", "BMI", "DiabetesPedigreeFunction", "Age")
+
+mean_train <- sapply(df_train[quant_pred_names], mean)
+sd_train <- sapply(df_train[quant_pred_names], sd)
+
+df_train_std <- df_train
+df_test_std <- df_test
+
+df_train_std[quant_pred_names] <- mapply(
+    standardize,
+    df_train_std[quant_pred_names],
+    mean = mean_train,
+    sd = sd_train
+)
+
+df_test_std[quant_pred_names] <- mapply(
+    standardize,
+    df_test_std[quant_pred_names],
+    mean = mean_train,
+    sd = sd_train
+)
+```
+
+```{r}
+# knn model with k=2
+knn_2 <- knn(
+    df_train_std[quant_pred_names],
+    df_test_std[quant_pred_names],
+    df_train_std$Outcome,
+    k = 2
+)
+
+# Evaluate it on the test data.
+# This is a fair evaluation.
+confusionMatrix(
+    knn_2,
+    as.factor(df_test_std$Outcome),
+    mode = "everything"
+)
+
+```    
 
 ## Question 9:
 **What is the best value of k on these data based on your tuning?**

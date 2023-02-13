@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Description
 
-The data in diabetes.csv - also hosted at https://www.kaggle.com/datasets/uciml/pima-indians-diabetes-database - contains information about female patients of Pima Indian heritage who are at least 21 years old. The data contains the following variables:
+The data in diabetes.csv - also hosted at <https://www.kaggle.com/datasets/uciml/pima-indians-diabetes-database> - contains information about female patients of Pima Indian heritage who are at least 21 years old. The data contains the following variables:
 
 -   **Pregnancies:** number of pregnancies experienced by the patient.
 -   **Glucose:** the plasma glucose concentration measured from an oral glucose tolerance test (in mg=dL).
@@ -35,6 +35,7 @@ The data in diabetes.csv - also hosted at https://www.kaggle.com/datasets/uciml/
 -   **Outcome:** whether or not the patient was diagnosed with diabetes (1:diagnosed with diabetes, 0: not diagnosed with diabetes).
 
 ## Question 1:
+
 **Load the data contained in the diabetes.csv file in R.**
 
 ```{r, message = FALSE}
@@ -53,6 +54,7 @@ head(df)
 ```
 
 ## Question 2:
+
 **Replicate the logic used in the class8.r file to divide the data in a `train`, `validation` and `test` set. Use a 40% - 30% - 30% split.**
 
 ```{r}
@@ -68,20 +70,17 @@ is_validation <- as.logical(rbinom(dim(df)[1], 1, 0.5) * !is_train)
 df_validation <- df[is_validation, ]
 
 # The remaining 50% of the 60% will go in "test".
-df_test <- df[!is_train | !is_validation, ]
+df_test <- df[!(is_train | is_validation), ]
 ```
-
-```{r}
-df_test
-```
-
 
 ## Question 3:
-**Using all available predictors, fit to the training set:**
-- a classifer based on logistic regression
-- an LDA classifer
-- a QDA classifer
-- a Naive Bayes classifer.
+
+**Using all available predictors, fit to the training set:** 
+
+- a classifer based on logistic regression 
+- an LDA classifer 
+- a QDA classifer 
+- a Naive Bayes classifer
 
 ```{r}
 #Logistc Regression
@@ -98,17 +97,18 @@ nb_outcome <- naiveBayes(Outcome ~ ., data = df_train)
 ```
 
 ## Question 4:
-**A group of physician asks you to produce a classifer that achieves 85% Sensitivity when used to test new Pima Indian female patients for diabetes. Using the validation set:
-- plot the ROC curves for the models you built
-- use the roc function of the pROC library to find - for each of the models you built - the largest threshold t that makes your model achieves at least 90% Sensitivity (just in case, we build some extra margin here to stay a little conservative and make it more likely that we can hit the target Sensitivity goal).
+
+**A group of physician asks you to produce a classifer that achieves 85% Sensitivity when used to test new Pima Indian female patients for diabetes. Using the validation set:** 
+- plot the ROC curves for the models you built 
+- use the roc function of the pROC library to find  for each of the models you built the largest threshold t that makes your model achieves at least 90% Sensitivity (just in case, we build some extra margin here to stay a little conservative and make it more likely that we can hit the target Sensitivity goal). 
 - which model performs best (i.e., achieves the largest Specificity) under these conditions?
 
 For the second and third bullet point, you can use this kind of logic:
 
 ```{r, message=FALSE}
 plot.roc(
-    df_train$Outcome,
-    predict(logistic_outcome),
+    df_validation$Outcome,
+    predict(logistic_outcome, df_validation),
     col = "blue",
     print.auc=TRUE
 )
@@ -120,8 +120,8 @@ title(main = "ROC Logistic Regression")
 
 ```{r, message=FALSE}
 plot.roc(
-    df_train$Outcome,
-    predict(lda_outcome)$posterior[, 2],
+    df_validation$Outcome,
+    predict(lda_outcome, df_validation)$posterior[, 2],
     col = "blue",
     print.auc=TRUE
 )
@@ -133,8 +133,8 @@ title(main = "ROC LDA")
 
 ```{r, message=FALSE}
 plot.roc(
-    df_train$Outcome,
-    predict(qda_outcome)$posterior[, 2],
+    df_validation$Outcome,
+    predict(qda_outcome, df_validation)$posterior[, 2],
     col = "blue",
     print.auc=TRUE
 )
@@ -146,8 +146,8 @@ title(main = "ROC QDA")
 
 ```{r, message=FALSE}
 plot.roc(
-    df_train$Outcome,
-    predict(nb_outcome, df_train, type='raw')[,2],
+    df_validation$Outcome,
+    predict(nb_outcome, df_validation, type='raw')[,2],
     col = "blue",
     print.auc=TRUE
 )
@@ -215,27 +215,36 @@ lda_diabetes_roc$specificities[lda_diabetes_roc_index]
 qda_diabetes_roc$specificities[qda_diabetes_roc_index]
 nb_diabetes_roc$specificities[nb_diabetes_roc_index]
 ```
+```{r}
+#Threshold Values for each model
+logistic_diabetes_t
+lda_diabetes_t
+qda_diabetes_t
+nb_diabetes_t
+```
+
+Looking at these Values we can notice that LDA got the best performance with the highest Specificity (0.586). But the Logistic regression model obtain a pretty close value of 0.58 and both models got us an AUC value of 0.830.
 
 ## Question 5:
+
 **How different are the ROC curves of the classifer obtained by means of logistic regression and of the LDA classifer? Are you surprised by this result? Explain.**
 
-Not too different, as we can see that the AUC for the Logistic Regression was 0.816 and the 0.817 for the LDA classifier and the desired Sensitivity is achived at a very similar Specificity (0.58 and 0.586 respectively)
+Not too different, as we can see that the AUC for the Logistic Regression was 0.830 and the 0.830 for the LDA classifier and the desired Sensitivity is achieved at a very similar Specificity (0.58 and 0.586 respectively). This results are interesing as typically Logistic Regression is better than LDA since it does not make any assumption on the distribution of the data (normality) compared to the LDA that does.
 
 ## Question 6:
+
 **Evaluate the winner model of Question 4 on the test set using the confusion Matrix function. You will need to use the threshold that you computed for this model in Question 4. Does this model seem to satisfy the Sensitivity requirement that the physicians shared with you?**
 
 The winner based on the highest Specificity under the desired Sensitivity of 90% is the LDA model with a Specificity value of 0.586 (very close to the Logistic Regression Model).
 
 ```{r}
-test1 <- predict(lda_outcome, df_test)$posterior[, 2]
-tab1 <- table(test1 > 0.5, df_test$Outcome)
-tab1
+sum(df_test$Outcome)
 ```
-
 
 ```{r}
 # Confusion matrix.
-t <- 0.5
+test1 <- predict(lda_outcome, df_test)$posterior[, 2]
+t <- lda_diabetes_t
 confusionMatrix(
     as.factor(
         ifelse(
@@ -245,17 +254,20 @@ confusionMatrix(
         )
     ),
     as.factor(df_test$Outcome),
-    mode = "everything"
+    mode = "everything",
+    positive = '1'
 )
 ```
 
+Yes the model meets the requirement of 85% Sensitivity given by the physician as we got a Sensitivity of 85.9% with a Specificity of 64%.
 
 ## Question 7:
-**What is your best estimate about the Specificity that your model will achieve on future patients?**
+
+**What is your best estimate about the Specificity that your model will achieve on future patients?** 
 The value would be either as good of what we see on the Test data (data that the model has not seen before) or slightly lower.
 
-
 ## Question 8:
+
 **Fit a knn classifer to the training data and tune the parameter k of your knn classifer using the validation set in such a way that k maximizes the Sensitivity of the classifer on the validation set. You can look back at the class8.r file that we discussed in class and adapt the code from there.**
 
 ```{r}
@@ -297,7 +309,7 @@ df_test_std[quant_pred_names] <- mapply(
 ```
 
 ```{r}
-# We will optimize our knn model with respect to the F1 score.
+# We will optimize our knn model with respect to the Sensitivity.
 k_candidates <- 2:75
 knn_models <- list()
 knn_models_performance <- list()
@@ -336,10 +348,12 @@ grid(nx = NULL, ny = NULL,
 
 title(main = "KNN Optimal K value")
 ```
+
 ```{r}
 #Best K value
 best_k
 ```
+
 ```{r}
 # Let's fit our best model.
 knn_default_best <- knn(
@@ -353,16 +367,26 @@ knn_default_best <- knn(
 confusionMatrix(
     knn_default_best,
     as.factor(df_test_std$Outcome),
-    mode = "everything"
+    mode = "everything",
+    positive = '1'
 )
 ```
 
 ## Question 9:
+
 **What is the best value of k on these data based on your tuning?**
+
+```{r}
+#Best K value
+best_k
+```
 
 The best value as seeing above is k = 59.
 
-
 ## Question 10:
+
 **Evaluate the knn model on the test set using the confusion Matrix function. Does this knn model perform better or worse than the winner model of Question 4? Which model will you share with the physician to help them diagnose diabetes on future female Pima Indian patients?**
 
+This model performs worse than the winner from Question 4, we can see that the Sensitivity from the KNN model is around 32% compared to 85.6% given by the LDA model.
+
+We would share the LDA model that meets the physician requirement of at least 85% Sensitivity.
